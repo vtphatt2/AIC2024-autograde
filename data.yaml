@@ -1,5 +1,5 @@
-train: /Users/VoThinhPhat/Desktop/AIC2024-autograde/data/images/train  
-val: /Users/VoThinhPhat/Desktop/AIC2024-autograde/data/images/val     
+train: /root/data/images/train  
+val: /root/data/images/val     
 
 nc: 2 
 names:
