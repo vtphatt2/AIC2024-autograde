@@ -1,5 +1,10 @@
-# Training data
+# Data
 Trainning_SET/
+warm-up/
+
+# Weights
+yolov5su.pt
+runs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
