@@ -1,8 +1,7 @@
-train: /root/data/images/train  
-val: /root/data/images/val     
+train: /home/clc_hcmus/autograde/sbd_data/images/train 
+val: /home/clc_hcmus/autograde/sbd_data/images/val    
 
-nc: 2 
+nc: 2
 names:
     0: tick
     1: not_tick
-   

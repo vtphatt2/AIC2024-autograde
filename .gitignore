@@ -1,6 +1,7 @@
 # Data
 Trainning_SET/
 warm-up/
+testset1/
 
 # Weights
 yolov5su.pt
