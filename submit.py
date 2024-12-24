@@ -1,23 +1,18 @@
-from glob import glob
-from ultralytics import YOLO
+from submit_sbd_mdt import submit_sbd_mdt
+from submit_part1 import submit_part1
+from submit_part2 import submit_part2
+from submit_part3 import submit_part3
+from glob import glob 
 import os
 
 
-model_for_sbd_mdt = YOLO('best_sbd_mdt.pt')
-# model_for_part_1 = YOLO('best_part_2.pt')
-# model_for_part_2 = YOLO('best_part_3.pt')
-# model_for_part_3 = YOLO('best_part_4.pt')
+testset_image_files = glob(os.path.join('testset1', 'images', '*.jpg'))
+testset_image_files.sort()
 
 
-test_image_files = glob(os.path.join('testset1', 'images', '*.jpg'))
+os.makedirs('submission', exist_ok=True)
+submit_sbd_mdt(testset_image_files)
+submit_part1(testset_image_files)
+submit_part2(testset_image_files)
+submit_part3(testset_image_files)
 
-result_path = os.path.join('submission', 'result.txt')
-
-
-def process_and_write_to_file(results):
-
-
-
-for image_path in test_image_files:
-    results = model_for_sbd_mdt (image_path)
-    process_and_write_to_file(results)
