@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 import os
+import cv2
 
 model_part2 = YOLO('best_part2.pt')
 output_file = os.path.join('submission', 'results_part2.txt')
