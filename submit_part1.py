@@ -124,7 +124,7 @@ def process_and_write_to_file(results, image_path):
     ticked_boxes = {}
     for i in range(1, 41):
         if results_end[i] is not None:
-            ticked_boxes["1." + str(i)] = f'{results_end[i][0]/WIDTH:6f},{results_end[i][1]/HEIGHT:6f},{results_end[i][2]/WIDTH:6f},{results_end[i][3]/HEIGHT:6f}'
+            ticked_boxes["1." + str(i)] = f'{results_end[i][0]/WIDTH:6f},{results_end[i][1]/HEIGHT:6f},{(results_end[i][2] - results_end[i][0])/WIDTH:6f},{(results_end[i][3]-results_end[i][1])/HEIGHT:6f}'
 
     return ticked_boxes
 
