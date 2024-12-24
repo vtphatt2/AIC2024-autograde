@@ -18,6 +18,6 @@ def process_and_write_to_file(results):
 
 
 
-for image_path in test_image_files:
-    results = model_for_sbd_mdt (image_path)
-    process_and_write_to_file(results)
+# for image_path in test_image_files:
+#     results = model_for_sbd_mdt (image_path)
+#     process_and_write_to_file(results)
