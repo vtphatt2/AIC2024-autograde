@@ -114,6 +114,8 @@ model_part1 = YOLO(model_path)
 # results = model_part1(img_path)
 output_file = os.path.join('submission', 'results_part1.txt')
 def process_and_write_to_file(results, image_path):
+    WIDTH = 2255
+    HEIGHT = 3151
     datas = convert_data(results)
     update_row_col(datas)
     num = 0
@@ -122,7 +124,7 @@ def process_and_write_to_file(results, image_path):
     ticked_boxes = {}
     for i in range(1, 41):
         if results_end[i] is not None:
-            ticked_boxes["1." + str(i)] = f'{results_end[i][0]:6f},{results_end[i][1]:6f},{results_end[i][2]:6f},{results_end[i][3]:6f}'
+            ticked_boxes["1." + str(i)] = f'{results_end[i][0]/WIDTH:6f},{results_end[i][1]/HEIGHT:6f},{results_end[i][2]/WIDTH:6f},{results_end[i][3]/HEIGHT:6f}'
 
     return ticked_boxes
 

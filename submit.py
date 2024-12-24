@@ -12,7 +12,7 @@ testset_image_files.sort()
 
 os.makedirs('submission', exist_ok=True)
 # submit_sbd_mdt(testset_image_files)
-# submit_part1(testset_image_files)
+submit_part1(testset_image_files)
 # submit_part2(testset_image_files)
 # submit_part3(testset_image_files)
 
