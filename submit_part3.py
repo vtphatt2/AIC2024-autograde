@@ -1,413 +1,102 @@
-from ultralytics import YOLO
 import os
+from ultralytics import YOLO
 import cv2
+import numpy as np
 
-model_part3 = YOLO('best_part3.pt')
-output_file = os.path.join('submission', 'results_part2.txt')
+model_path = 'best_part3.pt'
+model = YOLO(model_path)
 
-def get_sbd(boxes, img):
-    boxes = sorted(boxes, 
-                   key=lambda x: {x['box'][0], x['box'][1]}, 
-                   )
-    
-    result = []
-    
-    for i in range(0, 6):
-        ticks = []
-        col = boxes[i * 10 : (i + 1) * 10]
-        col = sorted(col, key=lambda x: x['box'][1])
-        print(len(col))
-        for j in range(0, 10):
-            if col[j]['label'] == 0:
-                ticks.append(j)
-                # print(boxes[j])
-        print(ticks)
+def process(img_path):
+    results = model(img_path)
+    result = results[0]
+    boxes = result.boxes.xywhn
+    labels = result.boxes.cls
+    conf = result.boxes.conf
 
-        if (len(ticks) == 1):
-            print(f'SBD{i + 1}')
-            result.append({f'SBD{i + 1}' : col[0]})
-            continue
+    centers = np.column_stack((boxes[:, 0], boxes[:, 1]))
+    sorted_indices = np.argsort(centers[:, 0])
 
-        if len(ticks) == 0:
-            minConf = 10
-            resId = 0
-            for j in range(0, 10):
-                if col[j]['conf'] < minConf:
-                    minConf = col[j]['conf']
-                    resId = j
+    sorted_boxes = result.boxes[sorted_indices].xywhn
+    sorted_labels = result.boxes[sorted_indices].cls
+    sorted_conf = result.boxes[sorted_indices].conf
+
+    # xóa các ô bị lặp nếu có
+    delete_idx = []
+    for i in range(len(sorted_boxes)-1):
+        x1, y1, w, h = sorted_boxes[i]
+        x2, y2, w, h = sorted_boxes[i+1]
+        if abs(x2 - x1) < 0.01 and abs(y2 - y1) < 0.01:
+            delete_idx.append(i+1)
+
+    sorted_boxes = np.delete(sorted_boxes, delete_idx, axis=0)
+    sorted_labels = np.delete(sorted_labels, delete_idx, axis=0)
+    sorted_conf = np.delete(sorted_conf, delete_idx, axis=0)
+
+    final_sorted_boxes = []
+    i = 0
+    while i < len(sorted_boxes):
+        if i%43 == 33:
+            step = 10
         else:
-            maxConf = 0
-            resId = 0
-            for j in ticks:
-                if col[j]['conf'] > maxConf:
-                    maxConf = col[j]['conf']
-                    resId = j
-
-        print(f'SBD{i + 1}')
-        result.append({f'SBD{i + 1}' : col[resId]})
-
-    return result
-        
-
-def get_mdt(boxes, img):
-    boxes = sorted(boxes, 
-                   key=lambda x: {x['box'][0], x['box'][1]}, 
-                   )
-    
-    result = []
-    
-    for i in range(0, 3):
-        ticks = []
-        col = boxes[i * 10 : (i + 1) * 10]
-        col = sorted(col, key=lambda x: x['box'][1])
-        print(len(col))
-        for j in range(0, 10):
-            if col[j]['label'] == 0:
-                ticks.append(j)
-                # print(boxes[j])
-        print(ticks)
-
-        if (len(ticks) == 1):
-            print(f'MDT{i + 1}')
-            result.append({f'MDT{i + 1}' : col[0]})
-            continue
-
-        if len(ticks) == 0:
-            minConf = 10
-            resId = 0
-            for j in range(0, 10):
-                if col[j]['conf'] < minConf:
-                    minConf = col[j]['conf']
-                    resId = j
-        else:
-            maxConf = 0
-            resId = 0
-            for j in ticks:
-                if col[j]['conf'] > maxConf:
-                    maxConf = col[j]['conf']
-                    resId = j
-
-        print(f'MDT{i + 1}')
-        result.append({f'MDT{i + 1}' : col[resId]})
-
-    return result
-        
-
-def to_grid(boxes, numcol):
-    left = 10 ** 9
-    right = 0
-    sumW = 0
-
-    for box in boxes:
-        x, y, w, h = box['box']
-
-        x -= w / 2
-        left = min(left, x)
-
-        x += w
-        right = max(right, x)
-
-        sumW += w
-
-    avgW = (right - left) / numcol
-
-    result = []
-
-    for i in range(0, numcol):
-        # result.append([])
-        col = []
-        l = left + i * avgW
-        r = left + (i + 1) * avgW
-        for box in boxes:
-            x, y, w, h = box['box']
-            if x >= l and x <= r:
-                col.append(box)
-        
-        result.append(col)
-
-    return result
-
-def to_grid_row(boxes, numrow):
-    top = 10 ** 9
-    bot = 0
-
-    for box in boxes:
-        x, y, w, h = box['box']
-
-        y -= h / 2
-        top = min(top, y)
-
-        y += h
-        bot = max(bot, y)
-
-
-    avgW = (bot - top) / numrow
-
-    result = []
-
-    for i in range(0, numrow):
-        # result.append([])
-        col = []
-        l = top + i * avgW
-        r = top + (i + 1) * avgW
-        for box in boxes:
-            x, y, w, h = box['box']
-            if y >= l and y <= r:
-                col.append(box)
-        
-        result.append(col)
-
-    return result
-
-def get_ticked(col, top, bot, numRow):
-    resid = 0
-
-    ticked = []
-    unticked = []
-
-    avgH = (bot - top) / numRow
-    if (len(col) == 0):
-        # print('empty')
-        return 0, None
-    for i in range(0, numRow):
-        t = top + i * avgH
-        b = top + (i + 1) * avgH
-
-        ls = []
-
-        for j in range(0, len(col)):
-            if col[j]['box'][1] >= t and col[j]['box'][1] <= b:
-                if col[j]['label'] == 0:
-                    ticked.append([i, col[j]['box'], col[j]['conf']])
-                else:
-                    unticked.append([i, col[j]['box'], col[j]['conf']])
-
-    if len(ticked) > 0:
-        mxConf = 0
-        resid = 0
-        
-        bx = None
-
-        for i in range(0, len(ticked)):
-            if ticked[i][2] > mxConf:
-                mxConf = ticked[i][2]
-                resid = ticked[i][0]
-                bx = ticked[i][1]
-
-        return resid, bx
-    
-    mnConf = 10
-    resid = 0
-
-    bx = None
-
-    for i in range(0, len(unticked)):
-        if unticked[i][2] < mnConf:
-            mnConf = unticked[i][2]
-            resid = unticked[i][0]
-            bx = unticked[i][1]
-
-    return resid, bx
-
-def get_ticked_row(col, left, right, numCol):
-    resid = 0
-
-    ticked = []
-    unticked = []
-
-    avgH = (right - left) / numCol
-    if (len(col) == 0):
-        # print('empty')
-        return 0, None
-    for i in range(0, numCol):
-        t = left + i * avgH
-        b = left + (i + 1) * avgH
-
-        ls = []
-
-        for j in range(0, len(col)):
-            if col[j]['box'][0] >= t and col[j]['box'][0] <= b:
-                if col[j]['label'] == 0:
-                    ticked.append([i, col[j]['box'], col[j]['conf']])
-                else:
-                    unticked.append([i, col[j]['box'], col[j]['conf']])
-
-    if len(ticked) > 0:
-        mxConf = 0
-        resid = 0
-        
-        bx = None
-
-        for i in range(0, len(ticked)):
-            if ticked[i][2] > mxConf:
-                mxConf = ticked[i][2]
-                resid = ticked[i][0]
-                bx = ticked[i][1]
-
-        return resid, bx
-    
-    mnConf = 10
-    resid = 0
-
-    bx = None
-
-    for i in range(0, len(unticked)):
-        if unticked[i][2] < mnConf:
-            mnConf = unticked[i][2]
-            resid = unticked[i][0]
-            bx = unticked[i][1]
-
-    return resid, bx
-
-def draw_debug_(img, col, name):
-    for box in col:
-        x, y, w, h = box['box']
-        x1 = int(x - w / 2)
-        y1 = int(y - h / 2)
-
-        x2 = int(x + w / 2)
-        y2 = int(y + h / 2)
-
-        if (box['label'] == 0):
-            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        else:
-            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-
-    cv2.imwrite(name, img)
-
-def process_and_write_to_file(results, image_path):
-    ticked_boxes = {
-        'SBD1': '',
-        'SBD2': '',
-        'SBD3': '',
-        'SBD4': '',
-        'SBD5': '',
-        'SBD6': '', 
-        'MDT1': '',
-        'MDT2': '',
-        'MDT3': ''
-    }
-
-    # img = cv2.imread(image_path)
-    WIDTH = 2255
-    HEIGHT = 3151
-
-    # print('dimension: ', WIDTH, HEIGHT)
-    # for result in results:
-    #     print(result.boxes)
-
-    boxes = []
-
-    # print(len(results.boxes))
-    for box in results.boxes:
-        boxes.append({
-            'label': int(box.cls[0].item()),
-            'box': box.xywh[0].tolist(),
-            'conf': box.conf.item()
-        })
-
-
-    # print('len',len(boxes))
-    
-    top = 100000
-    bot = 0
-
-    sumH = 0
-
-    for box in boxes:
-        x, y, w, h = box['box']
-        top = min(top, y - h / 2)
-        bot = max(bot, y + h / 2)
-        sumH += h
-
-    avgH = sumH / len(boxes)
-    
-    grid = to_grid(boxes, 11)
-    
-    res_sbd_mdt = []
-    for i in range(0, 6):
-        col = grid[i]
-
-        resid, bx = get_ticked(col, top, bot, 10)
-        if bx == None:
-            continue
-        # res_sbd_mdt.append({f'SBD{i + 1}': {'box': bx, 'conf': boxes[resid]['conf']}})
-        key = f'SBD{i + 1}'
-        # print('box', bx)
-
-        # print('get', key, resid)
-
-        x = bx[0] / WIDTH
-        y = bx[1] / HEIGHT
-        w = bx[2] / WIDTH
-        h = bx[3] / HEIGHT
-
-        ticked_boxes[key] = f'{x:6f},{y:6f},{w:6f},{h:6f}'
-
-    for i in range(8, 11):
-        col = grid[i]
-
-        resid, bx = get_ticked(col, top, bot, 10)
-        if bx == None:
-            continue
-        # res_sbd_mdt.append({f'MDT{i - 7}': {'box': bx, 'conf': boxes[resid]['conf']}})
-        key = f'MDT{i - 7}'
-        
-        # print('box', bx)
-        # print('get', key, resid)
-
-        x = bx[0] / WIDTH
-        y = bx[1] / HEIGHT
-        w = bx[2] / WIDTH
-        h = bx[3] / HEIGHT
-
-        ticked_boxes[key] = f'{x:6f},{y:6f},{w:6f},{h:6f}'
-
-
-    return ticked_boxes
-
-def part3_process(results, image_path):
-    WIDTH = 2255
-    HEIGHT = 3151
-
-    ticked_boxes = {}
-
-
-    boxes = []
-
-    # print(len(results.boxes))
-    for box in results.boxes:
-        boxes.append({
-            'label': int(box.cls[0].item()),
-            'box': box.xywh[0].tolist(),
-            'conf': box.conf.item()
-        })
-
-    
-    
-    top = 100000
-    bot = 0
-
-    sumH = 0
-
-    for box in boxes:
-        x, y, w, h = box['box']
-        top = min(top, y - h / 2)
-        bot = max(bot, y + h / 2)
-        sumH += h
-
-    avgH = sumH / len(boxes)
-    
-
-    grid = to_grid(boxes, 8)
-
-    return ticked_boxes
+            step = 11
+            
+        cluster_boxes = sorted_boxes[i:i + step]
+        cluster_labels = sorted_labels[i:i + step]
+        cluster_conf = sorted_conf[i:i + step]
+
+        cluster_sorted_boxes = cluster_boxes[np.argsort(cluster_boxes[:, 1])]
+        cluster_sorted_labels = cluster_labels[np.argsort(cluster_boxes[:, 1])]
+        cluster_sorted_conf = cluster_conf[np.argsort(cluster_boxes[:, 1])]
+
+        sorted_boxes[i:i + step] = cluster_sorted_boxes
+        sorted_labels[i:i + step] = cluster_sorted_labels
+        sorted_conf[i:i + step] = cluster_sorted_conf
+
+        i += step
+
+    string = ""
+
+    for i in range(6):
+        string += "3." + str(i+1) + " "
+        for k in range(4):
+            step = 11
+            if k == 3: step = 10
+
+            ticked_idx = [j for j in range(i*43+k*11, i*43+k*11+step) if sorted_labels[j] == 0.]
+            if len(ticked_idx) == 1:
+                string += str(sorted_boxes[ticked_idx[0]])[8:-2].replace(" ","") + " "
+                # string += str(ticked_idx[0]+1) + " "
+            elif len(ticked_idx) == 0:
+                min_conf_idx = np.argmin(sorted_conf[i*43+k*33:i*43+k*33+step]) + i*43+k*11
+                string += str(sorted_boxes[min_conf_idx])[8:-2].replace(" ","") + " "
+                # string += str(min_conf_idx+1) + " "
+            else:
+                max_conf = 0
+                max_conf_idx = i*43+k*11
+                for j in ticked_idx:
+                    if sorted_conf[j] > max_conf:
+                        max_conf = sorted_conf[j]
+                        max_conf_idx = j
+                string += str(sorted_boxes[max_conf_idx])[8:-2].replace(" ","") + " "
+                # string += str(max_conf_idx+1) + " "
+
+    return string[:-1]
 
 def submit_part3(testset_image_files):
     with open('./submission/results_part3.txt', 'w') as f:
+        # i = 0
         for image_file in testset_image_files:
-            results_part3 = model_part3(image_file)
-            res_part = part3_process(results_part3[0], image_file)
-
-            line = image_file.split('\\')[-1] + ' ' + ' '.join([f'{k} {v}' for k, v in res_part3.items()]) + '\n'
+            # i += 1
+            # if i == 10: break
+            try:
+                line = image_file.split('\\')[-1] + ' ' + process(image_file) + '\n'
+            except:
+                line = ""
             f.write(line)
+
+from glob import glob 
+
+testset_image_files = glob(os.path.join('testset1', 'images', '*.jpg'))
+testset_image_files.sort()
+
+submit_part3(testset_image_files)
