@@ -28,6 +28,8 @@ output_file = os.path.join("submission", "results.txt")
 data = {}
 
 for file in input_files:
+    if (os.path.exists(file) == False):
+        continue
     with open(file, "r") as f:
         for line in f:
             img_name, values = line.strip().split(" ", 1)

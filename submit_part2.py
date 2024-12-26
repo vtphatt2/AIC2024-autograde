@@ -473,24 +473,31 @@ def get_points(img):
     contours, _ = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     square = []
-
+    tmpcompy = copy.copy()
     for contour in contours:
 
         area = cv2.contourArea(contour)
         peri = cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
 
-        if (area < 20):
+        if (area < 100):
             continue
         if (len(approx) == 4):
             tmpImg = utlis.getTransform(thresh, approx)
-            percent = cv2.countNonZero(tmpImg) / (tmpImg.shape[0] * tmpImg.shape[1])
+            
+            if min(tmpImg.shape[0], tmpImg.shape[1]) / max(tmpImg.shape[0], tmpImg.shape[1]) < 0.7:
+                continue
+
+            percent = cv2.countNonZero(tmpImg) / (tmpImg.shape[0] * tmpImg.shape[1]) * (tmpImg.shape[0] + tmpImg.shape[1]) * (min(tmpImg.shape[0], tmpImg.shape[1]) / max(tmpImg.shape[0], tmpImg.shape[1]))
             square.append([utlis.Get_Conner_Points(contour), percent])
 
-    square = sorted(square, key=lambda x: x[1], reverse=True)
+            tmpcompy = cv2.drawContours(tmpcompy, [approx], -1, (0, 255, 0), 2)
 
-    # square = [0:9]
+    square = sorted(square, key=lambda x: x[1], reverse=True)
     square = square[:8]
+
+    cv2.imwrite('tmp.jpg', tmpcompy)
+    cv2.imwrite('tmp2.jpg', thresh)
 
     original = img.copy()
 
@@ -530,9 +537,11 @@ def get_points(img):
                         res = temp
                         # print(res[0], res[1])
 
+    rectangle_img = cv2.drawContours(original, [res[0]], -1, (0, 255, 0), 2)
+    cv2.imwrite('rectangle.jpg', rectangle_img)
+
     reorder = utlis.reorder(res[0])
     coordinates = [list(reorder[0][0]), list(reorder[1][0]), list(reorder[2][0]), list(reorder[3][0])]
-
     return np.array(coordinates)
 
 # Tính góc cần xoay lại
@@ -562,7 +571,12 @@ def draw_debug(image, x, y, w, h):
 def submit_part2(testset_image_files):
     with open('./submission/results_part2.txt', 'w') as f:
         for image_file in testset_image_files:
+            # if os.path.basename(image_file) != 'IMG_2184.jpg':
+            #     continue
 
+            print(os.path.basename(image_file))
+                
+            
             img = cv2.imread(image_file)
             width = img.shape[1]
             height = img.shape[0]
@@ -576,11 +590,21 @@ def submit_part2(testset_image_files):
 
             rotated_image, rotation_matrix = rotate_image(img, center, alpha)
             #img, _ = rotate_image(rotated_image, center, -alpha)
-
+            # cv2.imshow('rotated', rotated_image)
+            cv2.imwrite('rotated.jpg', rotated_image)
+            cv2.imwrite('beforrotated.jpg', img)
             results_part2 = model_part2(rotated_image)
 
+            # skip when no data
 
+            if len(results_part2[0].boxes) == 0:
+                print(f'No detection in {image_file}')
+                continue
             res_part2 = part2_process(results_part2[0], rotated_image, width, height)
+
+            # if no detection
+
+
             rotation_matrix = cv2.getRotationMatrix2D(tuple(center), angle=-alpha, scale=1.0)
 
             outputline = ''
