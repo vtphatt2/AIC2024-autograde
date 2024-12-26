@@ -7,6 +7,11 @@ MACOSX/
 Trainning_SET/
 warm-up/
 testset1/
+testset2/
+data_part1/
+data_part2/
+data_part3/
+data_sbd_mdt/
 
 # Weights
 yolov5su.pt
