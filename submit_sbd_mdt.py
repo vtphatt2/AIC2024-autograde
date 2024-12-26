@@ -162,7 +162,7 @@ def to_grid_row(boxes, numrow):
 
     return result
 
-def get_ticked(col, top, bot, numRow):
+def get_ticked(col, top, bot, numRow, img):
     resid = 0
 
     ticked = []
@@ -192,8 +192,22 @@ def get_ticked(col, top, bot, numRow):
         bx = None
 
         for i in range(0, len(ticked)):
-            if ticked[i][2] > mxConf:
-                mxConf = ticked[i][2]
+            
+            box_xyxy = [int(ticked[i][1][0] - ticked[i][1][2] / 2), int(ticked[i][1][1] - ticked[i][1][3] / 2), int(ticked[i][1][0] + ticked[i][1][2] / 2), int(ticked[i][1][1] + ticked[i][1][3] / 2)]
+
+            # get the box from the image
+            box = img[box_xyxy[1]:box_xyxy[3], box_xyxy[0]:box_xyxy[2]]
+
+            gray = cv2.cvtColor(box, cv2.COLOR_BGR2GRAY)
+            #adaptive threshold
+            thresh = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV,11,2)
+            #invert the image
+
+            # get the ratio of white pixels
+            ratio = cv2.countNonZero(thresh) / (box.shape[0] * box.shape[1])
+
+            if ratio > mxConf:
+                mxConf = ratio
                 resid = ticked[i][0]
                 bx = ticked[i][1]
 
@@ -278,7 +292,7 @@ def draw_debug_(img, col, name):
 
     cv2.imwrite(name, img)
 
-def process_and_write_to_file(results, image_path, WIDTH = 2255, HEIGHT = 3151):
+def process_and_write_to_file(results, img, WIDTH = 2255, HEIGHT = 3151):
     ticked_boxes = {
         'SBD1': None,
         'SBD2': None,
@@ -329,7 +343,7 @@ def process_and_write_to_file(results, image_path, WIDTH = 2255, HEIGHT = 3151):
     for i in range(0, 6):
         col = grid[i]
 
-        resid, bx = get_ticked(col, top, bot, 10)
+        resid, bx = get_ticked(col, top, bot, 10, img)
         if bx == None:
             continue
         # res_sbd_mdt.append({f'SBD{i + 1}': {'box': bx, 'conf': boxes[resid]['conf']}})
@@ -348,7 +362,7 @@ def process_and_write_to_file(results, image_path, WIDTH = 2255, HEIGHT = 3151):
     for i in range(8, 11):
         col = grid[i]
 
-        resid, bx = get_ticked(col, top, bot, 10)
+        resid, bx = get_ticked(col, top, bot, 10, img)
         if bx == None:
             continue
         # res_sbd_mdt.append({f'MDT{i - 7}': {'box': bx, 'conf': boxes[resid]['conf']}})
@@ -363,96 +377,6 @@ def process_and_write_to_file(results, image_path, WIDTH = 2255, HEIGHT = 3151):
         h = bx[3] / HEIGHT
 
         ticked_boxes[key] = [x,y,w,h]
-
-    return ticked_boxes
-
-part2_checklist = ['T', 'x', 'F', 'x', 'T', 'x', 'F', 'x', 'x', 'T', 'x', 'F', 'x', 'T', 'x', 'F', 'x', 'x', 'T', 'x', 'F', 'x', 'T', 'x', 'F', 'x', 'x', 'T', 'x', 'F', 'x', 'T', 'x', 'F' ]
-def part2_process(results, image_path, WIDTH = 2255, HEIGHT = 3151):
-    ticked_boxes = {}
-    for i in range(1, 9):
-        ticked_boxes[f'2.{i}.a'] = None
-        ticked_boxes[f'2.{i}.b'] = None
-        ticked_boxes[f'2.{i}.c'] = None
-        ticked_boxes[f'2.{i}.d'] = None
-
-    boxes = []
-
-    # print(len(results.boxes))
-    for box in results.boxes:
-        boxes.append({
-            'label': int(box.cls[0].item()),
-            'box': box.xywh[0].tolist(),
-            'conf': box.conf.item()
-        })
-
-    
-    top = 100000
-    bot = 0
-
-    sumH = 0
-
-    for box in boxes:
-        x, y, w, h = box['box']
-        top = min(top, y - h / 2)
-        bot = max(bot, y + h / 2)
-        sumH += h
-
-    avgH = sumH / len(boxes)
-    
-    # grid = to_grid(boxes, 34)
-    grid_row = to_grid_row(boxes, 4)
-
-    option = ['a', 'b', 'c', 'd']
-
-    opt = 0
-    for row in grid_row:
-        column = to_grid(row, 34)
-
-        curLetter = option[opt]
-        opt += 1
-        quest = 0
-
-        curBox = []
-
-        for i in range(0, 34):
-            if part2_checklist[i] == 'T':
-                curBox = []
-                quest += 1
-                for tmpBox in column[i]:
-                    curBox.append(tmpBox)
-                continue
-
-            if part2_checklist[i] == 'F':
-                for tmpBox in column[i]:
-                    curBox.append(tmpBox)
-                left = 100000000
-                right = 0
-
-                for box in curBox:
-                    x, y, w, h = box['box']
-                    x -= w / 2
-                    left = min(left, x)
-                    x += w
-                    right = max(right, x)
-
-                resid, bx = get_ticked_row(curBox, left, right, 2)
-                # print(len(curBox))
-                # resid, bx = get_ticked(col, top, right, 10)
-                # if bx == None:
-                #     continue
-                # # res_sbd_mdt.append({f'MDT{i - 7}': {'box': bx, 'conf': boxes[resid]['conf']}})
-                
-                key = f'2.{quest}.{curLetter}'
-                
-                # # print('box', bx)
-                # # print('get', key, resid)
-
-                x = bx[0]
-                y = bx[1]
-                w = bx[2] / WIDTH
-                h = bx[3] / HEIGHT
-
-                ticked_boxes[key] = [x,y,w,h]
 
     return ticked_boxes
 

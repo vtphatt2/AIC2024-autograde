@@ -131,14 +131,12 @@ def process_and_write_to_file(results, image_path):
     ticked_boxes = {}
     for i in range(1, 41):
         if results_end[i] is not None:
-            ticked_boxes["1." + str(i)] = f'{results_end[i][0]/WIDTH:6f},{results_end[i][1]/HEIGHT:6f},{(
-                results_end[i][2] - results_end[i][0])/WIDTH:6f},{(results_end[i][3]-results_end[i][1])/HEIGHT:6f}'
+            ticked_boxes["1." + str(i)] = f'{results_end[i][0]/WIDTH:6f},{results_end[i][1]/HEIGHT:6f},{(results_end[i][2] - results_end[i][0])/WIDTH:6f},{(results_end[i][3]-results_end[i][1])/HEIGHT:6f}'
 
     return ticked_boxes
 
 
 def submit_part1(testset_image_files):
-    print("hello")
     with open('./submission/results_part1.txt', 'w') as f:
         print(len(testset_image_files))
         for image_file in testset_image_files:
@@ -149,5 +147,9 @@ def submit_part1(testset_image_files):
             # print(line)
             f.write(line)
 
+from glob import glob
 
-submit_part1(['image.png'])
+testset_image_files = glob(os.path.join('testset2', 'images', '*.jpg'))
+testset_image_files.sort()
+
+submit_part1(testset_image_files)
