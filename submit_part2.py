@@ -1,6 +1,9 @@
 from ultralytics import YOLO
+from glob import glob 
 import os
 import cv2
+import numpy as np
+import utlis
 
 model_part2 = YOLO('best_part2.pt')
 output_file = os.path.join('submission', 'results_part2.txt')
@@ -217,7 +220,7 @@ def get_ticked_row(col, left, right, numCol):
 
     avgH = (right - left) / numCol
     if (len(col) == 0):
-        # print('empty')
+        print('empty')
         return 0, None
     for i in range(0, numCol):
         t = left + i * avgH
@@ -367,17 +370,13 @@ def process_and_write_to_file(results, image_path):
     return ticked_boxes
 
 part2_checklist = ['T', 'x', 'F', 'x', 'T', 'x', 'F', 'x', 'x', 'T', 'x', 'F', 'x', 'T', 'x', 'F', 'x', 'x', 'T', 'x', 'F', 'x', 'T', 'x', 'F', 'x', 'x', 'T', 'x', 'F', 'x', 'T', 'x', 'F' ]
-def part2_process(results, image_path):
+def part2_process(results, image_path, WIDTH = 2255, HEIGHT = 3151):
     ticked_boxes = {}
     for i in range(1, 9):
-        ticked_boxes[f'2.{i}.a'] = ''
-        ticked_boxes[f'2.{i}.b'] = ''
-        ticked_boxes[f'2.{i}.c'] = ''
-        ticked_boxes[f'2.{i}.d'] = ''
-
-
-    WIDTH = 2255
-    HEIGHT = 3151
+        ticked_boxes[f'2.{i}.a'] = None
+        ticked_boxes[f'2.{i}.b'] = None
+        ticked_boxes[f'2.{i}.c'] = None
+        ticked_boxes[f'2.{i}.d'] = None
 
     boxes = []
 
@@ -389,7 +388,6 @@ def part2_process(results, image_path):
             'conf': box.conf.item()
         })
 
-    
     
     top = 100000
     bot = 0
@@ -452,20 +450,169 @@ def part2_process(results, image_path):
                 # # print('box', bx)
                 # # print('get', key, resid)
 
-                x = bx[0] / WIDTH
-                y = bx[1] / HEIGHT
+                x = bx[0]
+                y = bx[1]
                 w = bx[2] / WIDTH
                 h = bx[3] / HEIGHT
 
-                ticked_boxes[key] = f'{x:6f},{y:6f},{w:6f},{h:6f}'
+                ticked_boxes[key] = [x,y,w,h]
 
     return ticked_boxes
+
+# Tìm 4 chấm đen
+def get_points(img):
+    copy = img.copy()
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    blur = cv2.blur(gray, (3, 3), 1)
+    blur = cv2.blur(blur, (5, 5), 3)
+    _, thresh = cv2.threshold(blur, 150, 255, cv2.THRESH_BINARY_INV)
+    canny = cv2.Canny(thresh, 50, 50)
+
+    contours, _ = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    square = []
+
+    for contour in contours:
+
+        area = cv2.contourArea(contour)
+        peri = cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
+
+        if (area < 20):
+            continue
+        if (len(approx) == 4):
+            tmpImg = utlis.getTransform(thresh, approx)
+            percent = cv2.countNonZero(tmpImg) / (tmpImg.shape[0] * tmpImg.shape[1])
+            square.append([utlis.Get_Conner_Points(contour), percent])
+
+    square = sorted(square, key=lambda x: x[1], reverse=True)
+
+    # square = [0:9]
+    square = square[:8]
+
+    original = img.copy()
+
+    def get_area(A, B, C, D):
+
+
+        A = [(A[0][0][0] + A[1][0][0] + A[2][0][0] + A[3][0][0]) // 4, (A[0][0][1] + A[1][0][1] + A[2][0][1] + A[3][0][1]) // 4]
+        B = [(B[0][0][0] + B[1][0][0] + B[2][0][0] + B[3][0][0]) // 4, (B[0][0][1] + B[1][0][1] + B[2][0][1] + B[3][0][1]) // 4]
+        C = [(C[0][0][0] + C[1][0][0] + C[2][0][0] + C[3][0][0]) // 4, (C[0][0][1] + C[1][0][1] + C[2][0][1] + C[3][0][1]) // 4]
+        D = [(D[0][0][0] + D[1][0][0] + D[2][0][0] + D[3][0][0]) // 4, (D[0][0][1] + D[1][0][1] + D[2][0][1] + D[3][0][1]) // 4]
+
+        res = utlis.reorder2(np.array([A, B, C, D]))
+        area = cv2.contourArea(res)
+
+        return [res, area]
+
+
+    res = [[], 0]
+
+    n = len(square)
+
+    for i in range(0, n):
+        for j in range(i + 1, n):
+            for k in range(j + 1, n):
+                for t in range(k + 1, n):
+                    A = square[i][0]
+                    B = square[j][0]
+                    C = square[k][0]
+                    D = square[t][0]
+
+                    # print(i, j, k, t)
+
+                    temp = get_area(A, B, C, D)
+                    # print(temp[1])
+                    # print(temp[0])
+                    if (temp[1] > res[1]):
+                        res = temp
+                        # print(res[0], res[1])
+
+    reorder = utlis.reorder(res[0])
+    coordinates = [list(reorder[0][0]), list(reorder[1][0]), list(reorder[2][0]), list(reorder[3][0])]
+
+    return np.array(coordinates)
+
+# Tính góc cần xoay lại
+def calculate_angle(points):
+    vector = points[1] - points[0]
+    # Tính góc alpha (độ) so với trục hoành
+    alpha = np.arctan2(vector[1], vector[0]) * 180 / np.pi
+    return alpha
+
+# Tính ma trận để xoay ảnh
+def rotate_image(image, center, alpha):
+    # Tính tâm O của hình chữ nhật
+    h, w = image.shape[:2]
+    # Tạo ma trận xoay
+    rotation_matrix = cv2.getRotationMatrix2D(tuple(center), alpha, 1.0)
+    # Xoay ảnh
+    rotated_image = cv2.warpAffine(image, rotation_matrix, (w, h), flags=cv2.INTER_LINEAR, borderValue=(255, 255, 255))
+    return rotated_image, rotation_matrix
+
+def draw_debug(image, x, y, w, h):
+
+    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    resized = cv2.resize(image, (int(image.shape[1] / 3), int(image.shape[0] / 3)))
+    cv2.imshow('debug', resized)
+    cv2.waitKey(0)
 
 def submit_part2(testset_image_files):
     with open('./submission/results_part2.txt', 'w') as f:
         for image_file in testset_image_files:
-            results_part2 = model_part2(image_file)
-            res_part2 = part2_process(results_part2[0], image_file)
 
-            line = image_file.split('\\')[-1] + ' ' + ' '.join([f'{k} {v}' for k, v in res_part2.items()]) + '\n'
+            img = cv2.imread(image_file)
+            width = img.shape[1]
+            height = img.shape[0]
+
+            
+            points = get_points(img)
+
+            alpha = calculate_angle(points)
+            center = np.mean(points, axis=0)
+
+
+            rotated_image, rotation_matrix = rotate_image(img, center, alpha)
+            #img, _ = rotate_image(rotated_image, center, -alpha)
+
+            results_part2 = model_part2(rotated_image)
+
+
+            res_part2 = part2_process(results_part2[0], rotated_image, width, height)
+            rotation_matrix = cv2.getRotationMatrix2D(tuple(center), angle=-alpha, scale=1.0)
+
+            outputline = ''
+
+            for key, value in res_part2.items():
+                #print(key, value)
+                nparr = np.array(value)
+                coor = np.array(value[:2])
+                
+                coor = np.append(coor, 1)
+                coor = coor @ rotation_matrix.T
+
+                # draw_debug(img, int(coor[0] - value[2] * width / 2), int(coor[1] - value[3] * height / 2), int(value[2] * width), int(value[3] * height))
+
+
+                value[0] = coor[0] / width
+                value[1] = coor[1] / height
+
+                outputline += f'{key} {value[0]:6f},{value[1]:6f},{value[2]:6f},{value[3]:6f} '
+            filename = os.path.basename(image_file)
+
+            line = filename + ' ' + outputline + '\n'
+            # print(line)
             f.write(line)
+
+
+
+
+testset_image_files = glob(os.path.join('testset2', 'images', '*.jpg'))
+testset_image_files.sort()
+
+
+os.makedirs('submission', exist_ok=True)
+# submit_sbd_mdt(testset_image_files)
+submit_part2(testset_image_files)
